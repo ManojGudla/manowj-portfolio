@@ -1,68 +1,78 @@
-# maNOWj
+# maNOWj Portfolio, Supabase edition
 
-A branded, responsive portfolio platform built with Next.js 14 App Router, TypeScript, Tailwind CSS, Prisma and PostgreSQL. The visual system uses jet black, hot pink and chartreuse with editorial typography and real starter content.
+A responsive maNOWj portfolio and starter admin workspace using Next.js 14, TypeScript, Tailwind, Supabase Auth/Postgres/Realtime, Zod and Resend (optional).
 
-## Included
+## Included in this version
 
-- Home, About, Portfolio, case-study pages, Services, Journal, Contact and Now pages
-- Responsive navigation, original SVG wordmark, favicon, Open Graph artwork, sitemap, robots and RSS
-- Zod + React Hook Form contact form, honeypot, in-memory rate limit and database persistence
-- Optional Resend email notifications and acknowledgement
-- Prisma schema for users, OAuth accounts/sessions, projects, posts, testimonials, contact messages, newsletter subscribers and rate-limit records
-- Auth.js Google/GitHub sign-in when credentials are configured
-- Published projects API, error boundary, 404, security headers and validation tests
+- Editorial portfolio pages and existing maNOWj brand content
+- Supabase SQL schema for profiles, projects, contact messages, analytics events and activity logs
+- Row Level Security policies for public published projects, admin project management, private messages and analytics
+- Supabase email/password sign-in and account creation UI
+- Admin workspace for create/edit/delete projects, view contact messages, analytics counters and CSV export
+- Supabase Realtime subscriptions for project and message changes
+- Public projects API with search, category filter and pagination
+- Contact form API with Zod validation, honeypot, in-memory rate limit, optional Resend notifications
+- Basic page-view event collection, light/dark theme toggle, favicon, metadata, RSS, sitemap, error page and 404
+- `.env.example` and setup guide
 
-## Requirements
+## Important security boundary
 
-- Node.js 20 or newer
-- PostgreSQL database (Neon works well)
-- npm
+The service-role key is not used in browser code. RLS policies are included in `supabase/schema.sql`. Admin CRUD relies on RLS and `public.is_admin()`. Before launch, run the SQL in Supabase and promote only your verified owner profile to ADMIN. Contact endpoint's rate limiter is in-memory and is not globally distributed; add a durable edge rate limiter before high-traffic production use. Basic analytics records page paths and event names, not full user identities.
 
-## Local setup
+## Setup
+
+1. Create a project at https://supabase.com.
+2. Open SQL Editor and run the complete `supabase/schema.sql`.
+3. In Authentication settings, enable Email provider. Set site URL to your deployed URL and add local/deployed redirect URLs.
+4. Copy `.env.example` to `.env.local`, then add:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SITE_URL`
+   - Optional Resend settings
+5. Install and run:
 
 ```bash
-cp .env.example .env
 npm install
-npx prisma generate
-npx prisma migrate dev --name init
 npm run dev
 ```
 
-Open http://localhost:3000. The contact form needs PostgreSQL. Email delivery requires Resend credentials and a verified sender address. OAuth requires Google and/or GitHub app credentials with the callback URL `http://localhost:3000/api/auth/callback/google` or `/api/auth/callback/github`.
+Open `http://localhost:3000`.
 
-## Deploy to Vercel + Neon
+## Promote the owner account to admin
 
-1. Create a PostgreSQL database at Neon and copy its pooled connection string to `DATABASE_URL`.
-2. Push this repository to GitHub and import it at https://vercel.com/new.
-3. Add environment variables from `.env.example` in Vercel Project Settings. Set `NEXT_PUBLIC_SITE_URL=https://www.manowj.com` and `AUTH_URL=https://www.manowj.com` when using that domain.
-4. Configure `www.manowj.com` in Vercel's Domains settings. Add the DNS records Vercel provides at your DNS host. Do not change records for your existing GIS app unless you intend to move that app.
-5. Apply schema changes using `npx prisma migrate deploy` from a trusted local terminal or CI job.
-6. Configure OAuth callback URLs for your production domain, then redeploy.
+1. Sign up through `/login`.
+2. Confirm the email if Supabase requires confirmation.
+3. In Supabase SQL Editor, run the query below using your own verified email:
 
-## Configure services
+```sql
+update public.profiles set role = 'ADMIN' where email = 'YOUR_VERIFIED_EMAIL';
+```
 
-- **Email:** set `RESEND_API_KEY`, `CONTACT_TO_EMAIL`, and `CONTACT_FROM_EMAIL`. Verify the sender domain in Resend before using a production address.
-- **OAuth:** configure `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_GITHUB_ID`, and `AUTH_GITHUB_SECRET`. The admin page redirects to login. Set the intended account's `role` to `ADMIN` in PostgreSQL before allowing administrative work.
-- **Cloudinary:** credentials are included as optional environment settings. Authenticated upload UI/endpoints are not exposed in this version.
-- **Live feeds:** YouTube and GitHub environment settings are included, but API-backed YouTube/Instagram feeds and GitHub contribution visualizations are not active. The site avoids pretending these are live.
-- **Newsletter:** the schema supports double opt-in, but subscription/confirmation routes are not active yet.
+4. Sign out and sign in again, then open `/admin`.
 
-## Important implementation boundary
+Do not set the role from a public browser form. The role update is an owner-only setup operation in the SQL editor.
 
-This is a runnable portfolio and contact foundation, not a claim that every item in the original wish list is implemented. Full admin CRUD, Cloudinary uploads, newsletter double opt-in, Instagram feed, GitHub contribution graph, booking integration, Cmd+K command palette, cookie consent, persistent cross-device portfolio editing and detailed analytics require additional provider-specific routes and testing. Do not expose write operations until admin authorization is implemented and verified.
+## Deploy to Vercel
+
+1. Push the extracted project into a separate GitHub repository or update your existing portfolio repository after backing it up.
+2. Import the repository in Vercel.
+3. Add the environment variables listed above to Vercel Project Settings.
+4. Run `supabase/schema.sql` in Supabase before testing database features.
+5. Deploy and test `/`, `/login`, `/admin`, `/api/projects`, `/api/contact`, and `/api/analytics`.
+6. Connect `portfolio.manowj.com` or another intended domain in Vercel. Avoid changing `www.manowj.com` if it currently serves GeoIntel unless you intentionally want to move that application.
+
+## Features requiring configuration or further production hardening
+
+- Supabase Realtime works only after the schema is applied and Realtime publication is enabled. The SQL attempts to add `projects` to the publication; confirm it in the Supabase dashboard.
+- Resend email requires a valid API key and verified sender domain.
+- OAuth providers are not included in this version; email/password auth is the configured path.
+- Analytics are basic first-party page-view events, not a full attribution or cookie-consent analytics suite.
+- In-memory contact rate limiting is not shared between serverless instances.
+- Run typecheck/build and verify against your actual Supabase project before claiming production readiness.
 
 ## Commands
 
 ```bash
-npm run dev
 npm run typecheck
-npm test
 npm run build
 ```
-
-## Before launch
-
-- Review social URLs and email in `lib/site.ts`.
-- Verify all public links and replace illustrative project descriptions with accurate outcomes and screenshots.
-- Configure database backups and monitoring.
-- Add a privacy policy and cookie notice appropriate to any analytics you enable.
